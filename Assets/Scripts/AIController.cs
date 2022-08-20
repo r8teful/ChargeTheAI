@@ -4,67 +4,35 @@ using UnityEngine;
 using UnityEngine.Events;
 using System; // events -> https://www.youtube.com/watch?v=70PcP_uPuUc
 public class AIController : MonoBehaviour {
-    private float craneDirection,direction, hitTime;
+    private float direction;
     private Rigidbody2D rb2;
-    private Transform upperPart;
     public float moveSpeed, craneSpeed;
-    private topCollision tc;
-    private bool nothingWrong, dead; 
+    public static event Action ChangedDirection;
     // Start is called before the first frame update
     void Start() {
         rb2 = GetComponent<Rigidbody2D>();
-        upperPart = gameObject.transform.GetChild(0);
-        tc = upperPart.GetComponent<topCollision>();
         direction = 1;
+        topCollision.Death += Dead;
+        Debug.Log("Instantiating AICONTROLLER");
     }
-
-    // Update is called once per frame
-    void Update() {
-            craneDirection = 0;
+    private void OnDestroy() {
+        topCollision.Death -= Dead;
     }
-
     private void FixedUpdate() {
-       //Check if any of the overlapping colliders are not player collider, if so, set isGrounded to true
-       if (!dead) {
-            upperPart.Translate(new Vector3(0, craneDirection, 0) * Time.deltaTime * craneSpeed);
-            rb2.velocity = new Vector2((direction) * moveSpeed, rb2.velocity.y);
-        }
+       // Move the AI 
+       rb2.velocity = new Vector2((direction) * moveSpeed, rb2.velocity.y);
     }
-
-    //private void OnCollisionEnter2D(Collision2D collision) {
-    //    if (Time.time - hitTime > 0.01) {
-    //        if ((!tc.getHit()) && collision.gameObject.CompareTag("Ground"))  {
-    //            direction = -direction;
-    //        }
-    //    }
-    //    hitTime = Time.time;
-    //}
     private void OnTriggerEnter2D(Collider2D collision) {
         if (collision.gameObject.CompareTag("Ground")) {
-            //Debug.Log("BONK");
+            // Change direction
             direction = -direction;
-        }
-        if (collision.gameObject.CompareTag("Player")) {
-            nothingWrong = true; 
+            ChangedDirection?.Invoke();
         }
     }
-    private void OnTriggerExit2D(Collider2D collision) {
-        if (collision.gameObject.CompareTag("Player")) {
-            nothingWrong = false;
-        }
-    }
-
-    public Vector2 GetVel() {
-        return rb2.velocity;
+    public float GetDir() {
+        return direction;
     }
     public void Dead() {
-        rb2.velocity = Vector2.zero;
-        dead = true;
-    }
-    public float GetCraneSpeed() {
-        return craneSpeed;
-    }
-    public bool GetNothingWrong() {
-        return nothingWrong;
+        moveSpeed = 0;
     }
 }

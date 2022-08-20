@@ -3,15 +3,14 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
-public class topCollision : MonoBehaviour
-{
-    private bool hit,g;
-    private float hitCoord, yTarget,vel, sinceLast, sinceLast2,sinceCharge;
+public class topCollision : MonoBehaviour {
+    private float yTarget, sinceLast, sinceCharge;
     private int index; 
     private List<Vector2> waypoints;
     private Transform pathHolder;
-    private Vector2 curW, deathPos;
+    private Vector2 curW;
     private AIController myParent;
+    public static event Action Death;
     private void OnDrawGizmos() {
         if (pathHolder != null) {
             Vector2 startPosition = pathHolder.GetChild(0).position;
@@ -24,15 +23,20 @@ public class topCollision : MonoBehaviour
         }
     }
     void Start() {
+        Debug.Log("Instantiating AICONTROLLER");
         pathHolder = GameObject.Find("Path").transform;
         myParent = transform.parent.GetComponent<AIController>();
         waypoints = new List<Vector2>();
+        AIController.ChangedDirection += DirectionChanged;
+
         sinceCharge = Time.time; // Start with full battery 
         // SetRightOrder();
         SetRightSibling();
         PopulateWayPoints();
     }
-
+    private void OnDestroy() {
+        AIController.ChangedDirection -= DirectionChanged;
+    }
     private void SetRightSibling() {
         Transform temp;
         // Bubble sort from https://www.tutorialspoint.com/Bubble-Sort-program-in-Chash
@@ -51,76 +55,57 @@ public class topCollision : MonoBehaviour
             waypoints.Add(pathHolder.GetChild(i).position);
         }
         yTarget = GetYTarget(0);
-        index = -1;
+        index = 0;
     }
-
     void Update() {
-       // Debug.Log(Time.time);
-        if ((index >= -1) && (index <= waypoints.Count) && (vel != myParent.GetVel().x) && !myParent.GetNothingWrong()) {
-            if (Time.time - sinceLast > 0.1) {
-                if (myParent.GetVel().x == 0f) {        
-                    StartCoroutine(ExecuteAfterTime(0.01f));
-                } else {
-                    if (myParent.GetVel().x > 0) index += 1;
-                    if (myParent.GetVel().x < 0) index -= 1;
-                    // Dont let out of bounds index make an error
-                    if ((index > 0) && (index < waypoints.Count)) yTarget = GetYTarget(index);
-                }
-            }
-            sinceLast = Time.time;
-        }
-        vel = myParent.GetVel().x;
+        //Debug.Log(transform.gameObject);
         if (transform.localPosition.y <= 0.5) {
             // Don't go into bottom layer
             transform.localPosition = new Vector2(transform.localPosition.x, 0.505f);
         }
         // Get next point in list / previous if it's going backwards
-        if ((curW.x - transform.position.x < 0.1) && (curW.x - transform.position.x > -0.1)) {
+        if (Mathf.Abs(curW.x - transform.position.x) < 0.1f) { // Check if AI is close to the target in the x axis
             // Dont let out of bounds index make an error
             if ((index < waypoints.Count) && (index >= 0)) yTarget = GetYTarget(index);
-            if (myParent.GetVel().x > 0) {
-                // Just allow increase 1 above index bounds
-                if (index <= waypoints.Count) {
-                    if (Time.time - sinceLast2 > 0.1) index++;
+            if (myParent.GetDir() >= 1) {
+                // Going forwards
+                // Just allow increase 1 above index bounds. Also dont let it go up two points in one frame
+                if ((index <= waypoints.Count) && (Time.time - sinceLast > 0.1)) {
+                    Debug.Log("INcreasing");
+                    index++;
                 }
-                sinceLast2 = Time.time;
-            } else if ((index >= 0 ) && (myParent.GetVel().x <= -1) ) {
+            } else if ((index >= 0) && (myParent.GetDir() <= -1)) {
                 // Going backwardas so decrease 
-                if (Time.time - sinceLast2 > 0.1) index--;
+                if (Time.time - sinceLast > 0.1) index--;
             }
-            sinceLast2 = Time.time;
+            sinceLast = Time.time;
         }
-        transform.position = Vector2.MoveTowards(transform.position, new Vector2(transform.position.x, yTarget), myParent.GetCraneSpeed() * Time.deltaTime);
+        // Update position to next target
+        transform.position = Vector2.MoveTowards(transform.position, new Vector2(transform.position.x, yTarget), myParent.craneSpeed * Time.deltaTime);
 
-        if ((Time.time - sinceCharge > 4)&& !(g)) {
+        if (Time.time - sinceCharge > 4) {
             // GAME OVER Stop the AI
-            deathPos = transform.position;
-            g = true;
-           
-           Debug.Log("GAME OVER");
+            Death?.Invoke();
+            myParent.craneSpeed = 0;
         }
-        if (g) {
-            transform.position = deathPos;
-            myParent.Dead();
-        }
-       
     }
-    IEnumerator ExecuteAfterTime(float time) {
-        yield return new WaitForSeconds(time);
-       
-        if (myParent.GetVel().x > 0) index += 2;
-        if (myParent.GetVel().x < 0) index -= 2;
-        // index = index + 2;
-        // Dont let out of bounds index make an error
-        if ((index > 0) && (index < waypoints.Count)) yTarget = GetYTarget(index);
-
+    private void DirectionChanged() {
+        Debug.Log("Event!");
+        if ((index >= -1) && (index <= waypoints.Count)) {
+            if (myParent.GetDir() > 0) index += 1;
+            if (myParent.GetDir() < 0) index -= 1;
+            // Dont let out of bounds index make an error
+            if ((index >= 0) && (index < waypoints.Count)) yTarget = GetYTarget(index);
+            }
     }
     private float GetYTarget(int i) {
-        //Debug.Log("Index: " + index + " yTarget: " + yTarget);
         curW = waypoints[i];
+        //Debug.Log($"curW: {curW}");
+        //Debug.Log($"transform.position.x: {transform.position.x}");
+        //Debug.Log($"transform.position.y: {transform.position.y}");
         var dirVec = (curW - new Vector2(transform.position.x, transform.position.y));
+        
         return transform.position.y + dirVec.y;
-
     }
     private void OnTriggerEnter2D(Collider2D collision) {
         if (collision.gameObject.CompareTag("Charge")) {
@@ -129,24 +114,6 @@ public class topCollision : MonoBehaviour
         if (collision.gameObject.CompareTag("NextLVL")) {
             Scenemanager.Instance.LoadNextLevel();
         }
-    }
-    //private void OnCollisionEnter2D(Collision2D collision) {
-    //    var c = collision.transform;
-    //    var t = transform.position;
-    //    if ((c.tag == "Ground") && (((c.position.y > t.y)) ||((c.position.y < t.y))) &&(c.position.x - t.x > -c.transform.localScale.x/2 - 0.5  && c.position.x - t.x < c.transform.localScale.x / 2 +0.5)) {
-    //        // Hit the ceiling 
-    //        Debug.Log("yas");
-    //        hitCoord = transform.position.y;
-    //        hit = true;
-    //    } else {
-    //        hit = false;
-    //    }
-    //}
-    //private void OnCollisionExit2D(Collision2D collision) {
-    //    hit = false;
-    //}
-    public bool getHit() {
-        return hit;
     }
     public float UntillDeath() {
         return (Time.time - sinceCharge);

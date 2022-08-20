@@ -19,7 +19,6 @@ public class Scenemanager : MonoBehaviour {
         } else {
             Destroy(gameObject);
         }
-        //Debug.Log(SceneManager.GetActiveScene().buildIndex);
     }
     private void Start() {
         manip = FindObjectOfType<objectManipulator>();
@@ -28,7 +27,6 @@ public class Scenemanager : MonoBehaviour {
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
     public void LoadNextLevel() {
-        Debug.Log("mroe than once? ");
         inEditor = true;
         noOfCharge = 0;
         Destroy(manip);
@@ -40,13 +38,14 @@ public class Scenemanager : MonoBehaviour {
     }
     public void StartLevel() {
         inEditor = false;
+      
         Instantiate(AI);
-        //AI = FindObjectOfType<AIController>().gameObject;
         manip = FindObjectOfType<objectManipulator>();
     }
     public void EnterEditor() {
         inEditor = true;
-        Destroy(GameObject.Find("AI(Clone)"));
+       // Debug.Log("BEFORE"+ FindObjectOfType<AIController>());
+        Destroy(FindObjectOfType<AIController>().gameObject);
     }
 
     public bool GetInEditor(){
@@ -55,7 +54,6 @@ public class Scenemanager : MonoBehaviour {
 
     // Gets max charging count for the current scene
     public int GetMaxChargingCount() {
-       // Debug.Log()
         return maxChargingCount[SceneManager.GetActiveScene().buildIndex];
     }
     public int GetNoOfCharge() {

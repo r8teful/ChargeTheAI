@@ -8,12 +8,7 @@ public class Battery : MonoBehaviour {
     [SerializeField] private Text text;
     [SerializeField] private topCollision top;
     private float deathTime;
-    // Start is called before the first frame update
-    void Start() {
-        
-    }
 
-    // Update is called once per frame
     void Update() {
         deathTime = 4 - top.UntillDeath();
         //Debug.Log(top.UntillDeath());
